@@ -2,6 +2,7 @@ import os
 import csv
 import argparse
 import importlib.metadata
+import subprocess  # Added for the --open feature
 from tqdm import tqdm
 from .downloader import download_song
 from .metadata_fetcher import get_clean_metadata
@@ -10,11 +11,12 @@ from .tagger import apply_metadata
 # --- AUTOMATIC VERSIONING ---
 def get_version():
     try:
-        # This looks up the version assigned by pip during installation
+        # Pulls version from installed package metadata
         return importlib.metadata.version("mymusic-dl-Rajthespaceman")
     except importlib.metadata.PackageNotFoundError:
-        # This only triggers if you are running the script manually without 'pip install -e .'
-        return "1.2.2-dev" 
+        # This acts as your single source of truth during local development
+        # Update this string whenever you update setup.py
+        return "1.2.2" 
 
 __version__ = get_version()
 
@@ -65,7 +67,6 @@ def run_from_csv(csv_file):
             continue
 
         try:
-            # Check for standard "Track - Artist" format
             if " - " in query:
                 s_name, a_name = query.split(" - ", 1)
                 data = get_clean_metadata(s_name, a_name)
@@ -110,6 +111,13 @@ def main():
         help="Search and download a single song by name (e.g. music -s 'Song Name')", 
         default=None
     )
+
+    # --- NEW OPEN FOLDER ARGUMENT ---
+    parser.add_argument(
+        "--open", 
+        help="Open the downloads folder in File Explorer", 
+        action="store_true"
+    )
     
     parser.add_argument(
         "-v", "--version", 
@@ -119,6 +127,20 @@ def main():
 
     args = parser.parse_args()
 
+    # --- HANDLE OPEN FOLDER MODE ---
+    if args.open:
+        path = os.path.abspath("downloads")
+        if os.path.exists(path):
+            print(f"📂 Opening: {path}")
+            if os.name == 'nt': # Windows
+                os.startfile(path)
+            elif os.name == 'posix': # Mac/Linux
+                subprocess.run(['open' if os.sys.platform == 'darwin' else 'xdg-open', path])
+        else:
+            print("❌ Downloads folder doesn't exist yet! Download a song first.")
+        return
+
+    # --- HANDLE SINGLE SEARCH MODE ---
     if args.search:
         print(f"🔎 Searching for: {args.search}")
         path = download_song(args.search)
