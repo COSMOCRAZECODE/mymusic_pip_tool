@@ -2,14 +2,14 @@ from setuptools import setup, find_packages
 
 setup(
     name="mymusic-dl-Rajthespaceman", 
-    version="1.3.2",  # Bumped to 1.2.2 to resolve the PyPI 403/Conflict error
+    version="1.4.0",  # Updated to the direct-folder version
     author="Raj Gohel",
     author_email="rajgohel202004@gmail.com",
-    description="A silent, professional CLI tool to download Spotify playlists using Exportify CSVs.",
+    description="A silent, direct-to-folder tool to download Spotify playlists using Exportify CSVs.",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     packages=find_packages(),
-    include_package_data=True, # Ensures non-python files are included
+    include_package_data=True,
     install_requires=[
         'yt-dlp',
         'mutagen',

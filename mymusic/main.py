@@ -13,7 +13,8 @@ def get_version():
     try:
         return importlib.metadata.version("mymusic-dl-Rajthespaceman")
     except importlib.metadata.PackageNotFoundError:
-        return "1.3.2" 
+        # Single source of truth for local dev fallback
+        return "1.4.0" 
 
 __version__ = get_version()
 
@@ -21,47 +22,13 @@ def run_from_csv(csv_file):
     """Main execution logic for processing the CSV file."""
     os.system('cls' if os.name == 'nt' else 'clear')
     
-    backup_dir = "backup"
-    history_file = os.path.join(backup_dir, "downloaded_history.txt")
-    failed_file = os.path.join(backup_dir, "failed_songs.txt") 
-    
-    if not os.path.exists(backup_dir):
-        os.makedirs(backup_dir)
-    
-    # 1. --- REALITY CHECK: Sync History/Failed with Downloads Folder ---
-    downloaded_history = []
-    if os.path.exists(history_file):
-        with open(history_file, "r", encoding="utf-8") as h:
-            stored_names = [line.strip() for line in h.readlines() if line.strip()]
-        
-        # Keep ONLY names that physically have an .mp3 file on disk
-        valid_history = [name for name in stored_names if os.path.exists(os.path.join("downloads", f"{name}.mp3"))]
-        
-        if len(valid_history) != len(stored_names):
-            diff = len(stored_names) - len(valid_history)
-            print(f"🧹 Syncing History: Removed {diff} ghost entries (Files missing from downloads).")
-            with open(history_file, "w", encoding="utf-8") as h:
-                for name in valid_history: h.write(f"{name}\n")
-            downloaded_history = valid_history
-        else:
-            downloaded_history = stored_names
-
-    # Clean up the Failed Songs list if they actually exist now
-    if os.path.exists(failed_file):
-        with open(failed_file, "r", encoding="utf-8") as f:
-            failed_names = [line.strip() for line in f.readlines() if line.strip()]
-        
-        still_failed = [name for name in failed_names if not os.path.exists(os.path.join("downloads", f"{name}.mp3"))]
-        with open(failed_file, "w", encoding="utf-8") as f:
-            for name in still_failed: f.write(f"{name}\n")
-
     if not os.path.exists(csv_file):
         print(f"🎵 PRO MUSIC PIPELINE v{__version__}")
         print("-" * 40)
         print(f"❌ Error: '{csv_file}' not found!")
         return
 
-    # 2. --- Load Songs ---
+    # 1. --- Load Songs from CSV ---
     songs = []
     try:
         with open(csv_file, mode='r', encoding='utf-8') as f:
@@ -75,12 +42,17 @@ def run_from_csv(csv_file):
         print(f"❌ Failed to read CSV: {e}")
         return
 
-    # 3. --- Process Songs ---
+    # 2. --- Process Songs (Checking Current Directory) ---
+    failed_songs = []
+    current_dir = os.getcwd()
+    
     pbar = tqdm(songs, desc="📥 Progress", unit="song", dynamic_ncols=True)
     
     for query in pbar:
-        # Standard skip check against our verified history
-        if query in downloaded_history:
+        # SKIP LOGIC: Check if the file already exists in the current folder
+        # We assume the downloader saves as 'Track - Artist.mp3'
+        target_file = f"{query}.mp3"
+        if os.path.exists(os.path.join(current_dir, target_file)):
             continue
 
         try:
@@ -94,48 +66,57 @@ def run_from_csv(csv_file):
             # Download attempt
             path = download_song(query)
             
-            # CRITICAL CHECK: Does the file actually exist at the returned path?
+            # Final verification
             if path and os.path.exists(path):
                 if data:
                     apply_metadata(path, data)
-                
-                # ONLY write to history if the file is physically verified
-                with open(history_file, "a", encoding="utf-8") as h:
-                    h.write(f"{query}\n")
             else:
-                # If download reported success but file is missing, log to failed
-                with open(failed_file, "a", encoding="utf-8") as f:
-                    f.write(f"{query}\n")
+                failed_songs.append(query)
                 
         except Exception:
-            with open(failed_file, "a", encoding="utf-8") as f:
-                f.write(f"{query}\n")
+            failed_songs.append(query)
             continue
 
-    print("\n✨ Process Complete! Your library and history are perfectly in sync.")
+    # 3. --- Final Report ---
+    print("\n✨ Process Complete!")
+    if failed_songs:
+        print(f"\n❌ The following {len(failed_songs)} songs failed:")
+        for f_song in failed_songs:
+            print(f"  - {f_song}")
+        
+        # Optional file creation for large failure lists
+        if len(failed_songs) > 3:
+            choice = input("\nSave these to 'failed_songs.txt'? (y/n): ").lower()
+            if choice == 'y':
+                with open("failed_songs.txt", "w", encoding="utf-8") as f:
+                    for f_song in failed_songs:
+                        f.write(f"{f_song}\n")
+                print("📝 Saved to failed_songs.txt")
+    else:
+        print("✅ All songs are synced and downloaded!")
 
 def main():
     """Entry point for the CLI tool."""
     parser = argparse.ArgumentParser(
         prog="music",
-        description=f"🎵 PRO MUSIC PIPELINE v{__version__}: A professional CLI downloader.",
-        epilog=f"Thanks for using MyMusic! (Version {__version__})"
+        description=f"🎵 PRO MUSIC PIPELINE v{__version__}: Direct-to-folder downloader.",
+        epilog="Run this inside the folder where you want your music!"
     )
     
-    parser.add_argument("-i", "--input", help="Path to playlist.csv", default="playlist.csv")
+    parser.add_argument("-i", "--input", help="CSV path", default="playlist.csv")
     parser.add_argument("-s", "--search", help="Single song search", default=None)
-    parser.add_argument("--open", help="Open downloads folder", action="store_true")
+    parser.add_argument("--open", help="Open current folder", action="store_true")
     parser.add_argument("-v", "--version", action="version", version=f"%(prog)s {__version__}")
 
     args = parser.parse_args()
 
+    # Opens the folder where the user currently is
     if args.open:
-        path = os.path.abspath("downloads")
-        if os.path.exists(path):
-            if os.name == 'nt':
-                os.startfile(path)
-            else:
-                subprocess.run(['open' if os.sys.platform == 'darwin' else 'xdg-open', path])
+        path = os.getcwd()
+        if os.name == 'nt':
+            os.startfile(path)
+        else:
+            subprocess.run(['open' if os.sys.platform == 'darwin' else 'xdg-open', path])
         return
 
     if args.search:
@@ -150,6 +131,4 @@ def main():
     run_from_csv(args.input)
 
 if __name__ == "__main__":
-    if not os.path.exists('downloads'): 
-        os.makedirs('downloads')
     main()
