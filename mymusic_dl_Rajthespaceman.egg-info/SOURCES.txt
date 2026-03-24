@@ -1,0 +1,13 @@
+README.md
+setup.py
+mymusic/__init__.py
+mymusic/downloader.py
+mymusic/main.py
+mymusic/metadata_fetcher.py
+mymusic/tagger.py
+mymusic_dl_Rajthespaceman.egg-info/PKG-INFO
+mymusic_dl_Rajthespaceman.egg-info/SOURCES.txt
+mymusic_dl_Rajthespaceman.egg-info/dependency_links.txt
+mymusic_dl_Rajthespaceman.egg-info/entry_points.txt
+mymusic_dl_Rajthespaceman.egg-info/requires.txt
+mymusic_dl_Rajthespaceman.egg-info/top_level.txt
