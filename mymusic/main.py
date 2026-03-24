@@ -13,7 +13,7 @@ def get_version():
     try:
         return importlib.metadata.version("mymusic-dl-Rajthespaceman")
     except importlib.metadata.PackageNotFoundError:
-        return "1.4.3" 
+        return "1.4.4" 
 
 __version__ = get_version()
 
@@ -28,18 +28,21 @@ def run_from_csv(csv_file):
     if not os.path.exists(backup_dir):
         os.makedirs(backup_dir)
     
-    # --- 1. PRE-RUN SYNC: Reality Check ---
+    # --- 1. SMART SYNC: Check Current Folder AND 'downloads' Subfolder ---
     downloaded_history = []
     if os.path.exists(history_file):
         with open(history_file, "r", encoding="utf-8") as h:
             stored_names = [line.strip() for line in h.readlines() if line.strip()]
         
-        # Only keep names that actually have a matching .mp3 file on disk
-        valid_history = [name for name in stored_names if os.path.exists(f"{name}.mp3")]
+        valid_history = []
+        for name in stored_names:
+            # Check if file exists in current dir OR downloads subfolder
+            if os.path.exists(f"{name}.mp3") or os.path.exists(os.path.join("downloads", f"{name}.mp3")):
+                valid_history.append(name)
         
         if len(valid_history) != len(stored_names):
             diff = len(stored_names) - len(valid_history)
-            print(f"🧹 Syncing: Removed {diff} ghost entries (Files missing from disk).")
+            print(f"🧹 Syncing: Removed {diff} ghost entries (Files not found in current or downloads folder).")
             with open(history_file, "w", encoding="utf-8") as h:
                 for name in valid_history: h.write(f"{name}\n")
             downloaded_history = valid_history
@@ -66,21 +69,22 @@ def run_from_csv(csv_file):
         print(f"❌ Failed to read CSV: {e}")
         return
 
-    # --- 3. Process Songs with Retry Logic ---
+    # --- 3. Process Songs with Dual-Folder Skip Logic ---
     failed_songs = []
     pbar = tqdm(songs, desc="📥 Progress", unit="song", dynamic_ncols=True)
     
     for query in pbar:
-        # Check physical existence
-        if query in downloaded_history and os.path.exists(f"{query}.mp3"):
+        # Check physical existence in BOTH possible locations
+        file_physically_exists = os.path.exists(f"{query}.mp3") or os.path.exists(os.path.join("downloads", f"{query}.mp3"))
+        
+        if query in downloaded_history and file_physically_exists:
             continue
 
         success = False
-        retries = 3  # Set attempt limit
+        retries = 3 
         
         for attempt in range(retries):
             try:
-                # Metadata fetching
                 if " - " in query:
                     s_name, a_name = query.split(" - ", 1)
                     data = get_clean_metadata(s_name, a_name)
@@ -89,7 +93,7 @@ def run_from_csv(csv_file):
 
                 path = download_song(query)
                 
-                # VERIFY BEFORE WRITING
+                # VERIFY BEFORE WRITING (Checks if downloader put it anywhere valid)
                 if path and os.path.exists(path):
                     if data:
                         apply_metadata(path, data)
@@ -97,12 +101,11 @@ def run_from_csv(csv_file):
                     with open(history_file, "a", encoding="utf-8") as h:
                         h.write(f"{query}\n")
                     success = True
-                    break # Exit retry loop on success
+                    break 
                     
             except Exception:
-                continue # Try next attempt
+                continue 
         
-        # If all 3 attempts fail, log it properly
         if not success:
             failed_songs.append(query)
             with open(failed_file, "a", encoding="utf-8") as f:
@@ -116,13 +119,13 @@ def run_from_csv(csv_file):
             print(f"  - {f_song}")
         print(f"\n📝 Check '{failed_file}' for the full list.")
     else:
-        print("✅ All songs are synced and downloaded!")
+        print("✅ All songs are synced!")
 
 def main():
     """Entry point for the CLI tool."""
     parser = argparse.ArgumentParser(
         prog="music",
-        description=f"🎵 PRO MUSIC PIPELINE v{__version__}: Direct-folder downloader with 3-attempt retry logic.",
+        description=f"🎵 PRO MUSIC PIPELINE v{__version__}: Dual-folder aware downloader.",
         epilog="Tracking data is stored in the 'backup' folder."
     )
     
@@ -134,7 +137,8 @@ def main():
     args = parser.parse_args()
 
     if args.open:
-        path = os.getcwd()
+        # Prefer opening the downloads folder if it exists
+        path = os.path.abspath("downloads") if os.path.exists("downloads") else os.getcwd()
         if os.name == 'nt':
             os.startfile(path)
         else:
