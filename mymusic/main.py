@@ -2,7 +2,7 @@ import os
 import csv
 import argparse
 import importlib.metadata
-import subprocess  # Added for the --open feature
+import subprocess
 from tqdm import tqdm
 from .downloader import download_song
 from .metadata_fetcher import get_clean_metadata
@@ -11,12 +11,10 @@ from .tagger import apply_metadata
 # --- AUTOMATIC VERSIONING ---
 def get_version():
     try:
-        # Pulls version from installed package metadata
         return importlib.metadata.version("mymusic-dl-Rajthespaceman")
     except importlib.metadata.PackageNotFoundError:
-        # This acts as your single source of truth during local development
-        # Update this string whenever you update setup.py
-        return "1.2.2" 
+        # Single source of truth for local dev fallback
+        return "1.3.1" 
 
 __version__ = get_version()
 
@@ -31,6 +29,7 @@ def run_from_csv(csv_file):
     if not os.path.exists(backup_dir):
         os.makedirs(backup_dir)
     
+    # Load history to skip already downloaded songs
     downloaded_history = []
     if os.path.exists(history_file):
         with open(history_file, "r", encoding="utf-8") as h:
@@ -63,7 +62,11 @@ def run_from_csv(csv_file):
     pbar = tqdm(songs, desc="📥 Progress", unit="song", dynamic_ncols=True)
     
     for query in pbar:
-        if query in downloaded_history:
+        # VERIFICATION CHECK: Skip ONLY if in history AND file actually exists on disk
+        # We check the 'downloads' folder for a filename matching the query
+        potential_path = os.path.join("downloads", f"{query}.mp3")
+        
+        if query in downloaded_history and os.path.exists(potential_path):
             continue
 
         try:
@@ -75,6 +78,7 @@ def run_from_csv(csv_file):
 
             path = download_song(query)
             
+            # SUCCESS CHECK: Confirm file is physically present before updating history
             if path and os.path.exists(path):
                 if data:
                     apply_metadata(path, data)
@@ -82,6 +86,7 @@ def run_from_csv(csv_file):
                 with open(history_file, "a", encoding="utf-8") as h:
                     h.write(f"{query}\n")
             else:
+                # Log to failed if download didn't produce a file
                 with open(failed_file, "a", encoding="utf-8") as f:
                     f.write(f"{query}\n")
                 
@@ -112,7 +117,6 @@ def main():
         default=None
     )
 
-    # --- NEW OPEN FOLDER ARGUMENT ---
     parser.add_argument(
         "--open", 
         help="Open the downloads folder in File Explorer", 
@@ -127,24 +131,22 @@ def main():
 
     args = parser.parse_args()
 
-    # --- HANDLE OPEN FOLDER MODE ---
     if args.open:
         path = os.path.abspath("downloads")
         if os.path.exists(path):
             print(f"📂 Opening: {path}")
-            if os.name == 'nt': # Windows
+            if os.name == 'nt':
                 os.startfile(path)
-            elif os.name == 'posix': # Mac/Linux
+            else:
                 subprocess.run(['open' if os.sys.platform == 'darwin' else 'xdg-open', path])
         else:
-            print("❌ Downloads folder doesn't exist yet! Download a song first.")
+            print("❌ Downloads folder doesn't exist yet!")
         return
 
-    # --- HANDLE SINGLE SEARCH MODE ---
     if args.search:
         print(f"🔎 Searching for: {args.search}")
         path = download_song(args.search)
-        if path:
+        if path and os.path.exists(path):
             print(f"✅ Downloaded to: {path}")
             if " - " in args.search:
                 s, a = args.search.split(" - ", 1)

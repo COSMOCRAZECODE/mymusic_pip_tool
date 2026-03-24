@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="mymusic-dl-Rajthespaceman", 
-    version="1.3.0",  # Bumped to 1.2.2 to resolve the PyPI 403/Conflict error
+    version="1.3.1",  # Bumped to 1.2.2 to resolve the PyPI 403/Conflict error
     author="Raj Gohel",
     author_email="rajgohel202004@gmail.com",
     description="A silent, professional CLI tool to download Spotify playlists using Exportify CSVs.",
