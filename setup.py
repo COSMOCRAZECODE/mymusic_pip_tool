@@ -2,15 +2,14 @@ from setuptools import setup, find_packages
 
 setup(
     name="mymusic-dl-Rajthespaceman", 
-    version="1.2.0",
+    version="1.2.2",  # Bumped to 1.2.2 to resolve the PyPI 403/Conflict error
     author="Raj Gohel",
     author_email="rajgohel202004@gmail.com",
     description="A silent, professional CLI tool to download Spotify playlists using Exportify CSVs.",
-    # Explicitly using utf-8 prevents the 'charmap' error on Windows
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     packages=find_packages(),
-    # Pip automatically installs these if the user's environment is missing them
+    include_package_data=True, # Ensures non-python files are included
     install_requires=[
         'yt-dlp',
         'mutagen',
@@ -20,7 +19,6 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            # This allows you to run 'music' from any terminal
             'music=mymusic.main:main', 
         ],
     },

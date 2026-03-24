@@ -1,4 +1,4 @@
-# 🎵 MyMusic Downloader (v1.1.0)
+# 🎵 MyMusic Downloader (v1.2.2)
 
 A high-performance, silent CLI tool designed to convert Spotify playlists into high-quality MP3s with 100% accurate metadata. This tool eliminates common glitches like wrong artist names or "remix" mismatches by using verified Exportify data and MusicBrainz matching.
 
