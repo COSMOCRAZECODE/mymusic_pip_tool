@@ -10,9 +10,11 @@ def run_from_csv(csv_file):
     """Main execution logic for processing the CSV file."""
     os.system('cls' if os.name == 'nt' else 'clear')
     
-    # 1. Setup Backup Folder and History
+    # 1. Setup Backup Folder and Files
     backup_dir = "backup"
     history_file = os.path.join(backup_dir, "downloaded_history.txt")
+    failed_file = os.path.join(backup_dir, "failed_songs.txt") # New failure log
+    
     if not os.path.exists(backup_dir):
         os.makedirs(backup_dir)
     
@@ -21,16 +23,11 @@ def run_from_csv(csv_file):
         with open(history_file, "r", encoding="utf-8") as h:
             downloaded_history = [line.strip() for line in h.readlines()]
 
-    # 2. Check for playlist.csv and provide instructions if missing
+    # 2. Check for playlist.csv
     if not os.path.exists(csv_file):
         print("🎵 PRO MUSIC PIPELINE (Exportify Edition)")
         print("-" * 40)
-        print(f"❌ Error: '{csv_file}' not found in this folder!")
-        print("\n📝 HOW TO GET YOUR TRACKLIST:")
-        print("1. Go to: https://watsonbox.github.io/exportify/")
-        print("2. Log in and find your playlist.")
-        print("3. Click 'Export'. It will download a CSV file.")
-        print(f"4. Move that file here and rename it to '{csv_file}'.")
+        print(f"❌ Error: '{csv_file}' not found!")
         print("-" * 40)
         return
 
@@ -48,10 +45,6 @@ def run_from_csv(csv_file):
         print(f"❌ Failed to read CSV: {e}")
         return
 
-    if not songs:
-        print("❌ Error: No songs found in the CSV. Check the file format.")
-        return
-
     # 4. Process Songs (Silent Mode)
     pbar = tqdm(songs, desc="📥 Progress", unit="song", dynamic_ncols=True)
     
@@ -66,11 +59,17 @@ def run_from_csv(csv_file):
             
             if path and data and os.path.exists(path):
                 apply_metadata(path, data)
-                
                 with open(history_file, "a", encoding="utf-8") as h:
                     h.write(f"{query}\n")
+            else:
+                # Log to failed_songs.txt if download/path fails
+                with open(failed_file, "a", encoding="utf-8") as f:
+                    f.write(f"{query}\n")
                 
         except Exception:
+            # Log to failed_songs.txt on any crash
+            with open(failed_file, "a", encoding="utf-8") as f:
+                f.write(f"{query}\n")
             continue
 
     print("\n✨ Process Complete! Check the 'downloads' folder.")
@@ -85,8 +84,29 @@ def main():
         help="Path to the playlist.csv file (default: playlist.csv)", 
         default="playlist.csv"
     )
+    # --- NEW SEARCH ARGUMENT ---
+    parser.add_argument(
+        "-s", "--search", 
+        help="Search and download a single song by name (e.g. music -s 'Song Name')", 
+        default=None
+    )
     
     args = parser.parse_args()
+
+    # --- HANDLE SINGLE SEARCH MODE ---
+    if args.search:
+        print(f"🔎 Searching for: {args.search}")
+        path = download_song(args.search)
+        if path:
+            print(f"✅ Downloaded to: {path}")
+            # Try to tag it if it's a "Track - Artist" format
+            if " - " in args.search:
+                s, a = args.search.split(" - ", 1)
+                data = get_clean_metadata(s, a)
+                if data: apply_metadata(path, data)
+        return
+
+    # DEFAULT: RUN CSV MODE
     run_from_csv(args.input)
 
 if __name__ == "__main__":

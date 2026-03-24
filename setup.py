@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="mymusic-dl-Rajthespaceman", 
-    version="1.0.0",
+    version="1.1.0",
     author="Your Name",
     description="A silent, professional CLI tool to download Spotify playlists using Exportify CSVs.",
     # Explicitly using utf-8 prevents the 'charmap' error on Windows

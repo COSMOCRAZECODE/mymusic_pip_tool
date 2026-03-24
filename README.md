@@ -1,43 +1,48 @@
-# 🎵 MyMusic Downloader (2026 Edition)
+# 🎵 MyMusic Downloader (v1.1.0)
 
-A high-performance, silent CLI tool designed to convert Spotify playlists into high-quality MP3s with 100% accurate metadata. This tool eliminates common glitches like wrong artist names or "remix" mismatches by using verified Exportify data. [cite: 1, 2, 7]
+A high-performance, silent CLI tool designed to convert Spotify playlists into high-quality MP3s with 100% accurate metadata. This tool eliminates common glitches like wrong artist names or "remix" mismatches by using verified Exportify data and MusicBrainz matching.
 
 ## ✨ Features
-* **Zero Spam UI**: A clean, single progress bar is the only thing that stays at the bottom of your terminal during the process. [cite: 1, 13, 19]
-* **Smart Resume**: Automatically detects a 'backup' folder and skips any songs you have already successfully downloaded. [cite: 1, 13]
-* **High-Quality Tags**: Stitches Title, Artist, Album, and Year directly into the MP3 metadata. [cite: 1, 13, 19]
-* **Global Access**: Once installed, you can run the 'mymusic' command from any folder on your computer. 
+* **Zero Spam UI**: A clean, single progress bar is the only thing that stays at the bottom of your terminal during the process.
+* **Smart Resume**: Automatically detects a 'backup' folder and skips any songs you have already successfully downloaded.
+* **Failure Tracking**: New in v1.1.0! Automatically logs failed downloads to 'backup/failed_songs.txt' for easy review.
+* **Single Song Search**: Download a specific track instantly without needing a CSV file.
+* **High-Quality Tags**: Stitches Title, Artist, Album, and Year directly into the MP3 metadata.
+* **Global Access**: Once installed, run the 'music' command from any folder on your computer.
 
 ## 🚀 Installation
-1. Ensure you have FFmpeg (https://ffmpeg.org/) installed and added to your system PATH. 
-2. Install the tool locally for development:
-   pip install -e .
+1. Ensure you have FFmpeg (https://ffmpeg.org/) installed and added to your system PATH.
+2. Install the tool globally via PyPI:
+   pip install mymusic-dl-Rajthespaceman
+3. Or update your existing version:
+   pip install --upgrade mymusic-dl-Rajthespaceman
 
 ## 📖 How to Use
-This tool uses Exportify to bypass Spotify's web security and ensure 100% metadata accuracy. [cite: 1, 7]
+This tool uses Exportify to bypass Spotify's web security and ensure 100% metadata accuracy.
 
-### 1. Get your tracks: 
-* Go to Exportify (https://watsonbox.github.io/exportify/) and log in. 
-* Export your desired playlist as a CSV file. 
-* Ensure the CSV contains 'Track Name' and 'Artist Name(s)' columns. 
+### 1. Batch Download (Playlist Mode): 
+* Go to Exportify (https://watsonbox.github.io/exportify/) and log in.
+* Export your desired playlist as a CSV file.
+* Run the command:
+   music -i your_file.csv
+   (Or just 'music' if your file is named playlist.csv)
 
-### 2. Setup your folder:
-* Move the downloaded CSV into your project folder. 
-* Rename it to 'playlist.csv' (or specify your custom filename using the -i flag). 
-
-### 3. Run the tool:
-   mymusic
+### 2. Single Search Mode:
+* If you just want one song, type:
+   music -s "Artist Name - Song Title"
 
 ## 🛠️ CLI Commands & Arguments
-* mymusic: Runs the downloader using the default 'playlist.csv'. 
-* mymusic -h: Opens the help menu to see all available options. 
-* mymusic -i <custom_name.csv>: Use this to specify a different CSV input file. 
+* music: Runs the downloader using the default 'playlist.csv'.
+* music -s "Search Query": Searches and downloads a single song.
+* music -i <file.csv>: Specify a different CSV input file.
+* music -h: Opens the help menu to see all available options.
 
 ## 📂 Backup & Safety
-The tool automatically manages a '/backup' folder to save your progress. [cite: 1, 13]
-* **Resume Capability**: If the process is interrupted, running 'mymusic' again will resume exactly where you left off. [cite: 1, 13]
-* **Skip Logic**: The tool reads 'downloaded_history.txt' inside the backup folder to ensure you never waste time or data on the same song twice. [cite: 1, 13]
+The tool automatically manages a '/backup' folder to save your progress.
+* **Resume Capability**: If the process is interrupted, running 'music' again will resume exactly where you left off.
+* **Skip Logic**: The tool reads 'downloaded_history.txt' to ensure you never waste data on the same song twice.
+* **Error Logs**: Check 'failed_songs.txt' inside the backup folder to see which tracks need a manual retry.
 
 ## 📝 Troubleshooting
-* **Pasting Links**: In standard Windows CMD, if 'Ctrl+V' shows '^V', try Right-Clicking the window title bar or the terminal area to paste. 
-* **Missing CSV**: If you run the tool without a CSV file present, it will display on-screen instructions for Exportify.
+* **Pasting in Terminal**: If 'Ctrl+V' doesn't work in Windows CMD, Right-Click the terminal window to paste.
+* **FFmpeg Error**: If the tool crashes during conversion, double-check that FFmpeg is installed and in your Environment Variables.
