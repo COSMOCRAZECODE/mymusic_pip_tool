@@ -3,6 +3,9 @@ import csv
 import argparse
 import importlib.metadata
 import subprocess
+import hashlib
+import re
+import time
 from tqdm import tqdm
 from .downloader import download_song
 from .metadata_fetcher import get_clean_metadata
@@ -13,35 +16,44 @@ def get_version():
     try:
         return importlib.metadata.version("mymusic-dl-Rajthespaceman")
     except importlib.metadata.PackageNotFoundError:
-        return "1.4.8" 
+        return "1.5.3" 
 
 __version__ = get_version()
 
+def get_query_hash(query):
+    """Unique 8-char ID based on Exportify Row."""
+    return hashlib.md5(query.encode('utf-8')).hexdigest()[:8]
+
 def run_from_csv(csv_file):
-    """Main execution logic with Mirror-Renaming and Cleanup."""
+    """Main execution logic with Lightweight Hash-Tagging and Verbose Sync."""
     os.system('cls' if os.name == 'nt' else 'clear')
     
     backup_dir = "backup"
     history_file = os.path.join(backup_dir, "downloaded_history.txt")
     failed_file = os.path.join(backup_dir, "failed_songs.txt") 
     
-    if not os.path.exists(backup_dir):
-        os.makedirs(backup_dir)
+    os.makedirs(backup_dir, exist_ok=True)
     
-    search_paths = [os.getcwd(), "downloads"]
-
-    # --- 1. LOAD HISTORY (Set for O(1) Lookup) ---
-    downloaded_history = set()
+    # 1. --- LOAD HISTORY ---
+    registered_hashes = set()
     if os.path.exists(history_file):
         with open(history_file, "r", encoding="utf-8") as h:
-            downloaded_history = {line.strip() for line in h if line.strip()}
+            registered_hashes = {line.strip() for line in h if line.strip()}
 
-    if not os.path.exists(csv_file):
-        print(f"🎵 PRO MUSIC PIPELINE v{__version__}\n❌ Error: '{csv_file}' not found!")
-        return
+    # 2. --- SCAN FOR PHYSICAL HASHES ---
+    # We find who is actually on disk regardless of the primary filename
+    search_dirs = [os.getcwd(), "downloads"]
+    physical_hashes = set()
+    
+    for d in search_dirs:
+        if not os.path.exists(d): continue
+        for filename in os.listdir(d):
+            match = re.search(r'\[([a-f0-9]{8})\]\.mp3$', filename)
+            if match:
+                physical_hashes.add(match.group(1))
 
-    # --- 2. Load Songs ---
-    songs = []
+    # 3. --- LOAD CSV & CROSS-CHECK ---
+    songs_data = []
     try:
         with open(csv_file, mode='r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
@@ -49,70 +61,90 @@ def run_from_csv(csv_file):
                 track = row.get('Track Name')
                 artist = row.get('Artist Name(s)')
                 if track and artist:
-                    songs.append(f"{track} - {artist}")
+                    q = f"{track} - {artist}"
+                    songs_data.append((q, get_query_hash(q)))
     except Exception as e:
-        print(f"❌ Failed to read CSV: {e}"); return
+        print(f"❌ CSV Error: {e}"); return
 
-    # --- 3. Process ---
-    failed_songs = []
-    pbar = tqdm(songs, desc="📥 Progress", unit="song", dynamic_ncols=True)
+    matched_count = 0
+    to_process = []
+    for query, q_hash in songs_data:
+        # Match only if hash is in TXT AND file is on disk
+        if q_hash in registered_hashes and q_hash in physical_hashes:
+            matched_count += 1
+        else:
+            to_process.append((query, q_hash))
+
+    print(f"📊 Total Songs in CSV: {len(songs_data)}")
+    print(f"✅ {matched_count} songs matched and verified. Skipping...")
+    if to_process:
+        print(f"🚀 {len(to_process)} songs to process (new or previously failed).")
+    print("-" * 40)
+
+    if not to_process:
+        print("✨ Everything is already synced!")
+        return
+
+    # 4. --- PROCESS ---
+    # Load failed songs into a set to prevent duplicates and allow removals
+    failed_set = set()
+    if os.path.exists(failed_file):
+        with open(failed_file, "r", encoding="utf-8") as f:
+            failed_set = {line.strip() for line in f if line.strip()}
+
+    pbar = tqdm(to_process, desc="📥 Progress", unit="song", dynamic_ncols=True)
     
-    # We wrap the loop in a try/except to catch Ctrl+C (KeyboardInterrupt)
     try:
-        for query in pbar:
-            # SKIP LOGIC: Match history name OR renamed file on disk
-            file_exists = os.path.exists(f"{query}.mp3") or os.path.exists(os.path.join("downloads", f"{query}.mp3"))
-            if query in downloaded_history and file_exists:
-                continue
-
+        for query, q_hash in pbar:
+            # If we are retrying this song, remove it from failed set first
+            failed_set.discard(query)
+            
             success = False
-            retries = 3 
-            for attempt in range(retries):
+            for attempt in range(3):
                 temp_path = None
                 try:
                     s_name, a_name = query.split(" - ", 1) if " - " in query else (query, "")
                     data = get_clean_metadata(s_name, a_name)
                     
-                    # Download song (might have generic yt-dlp name)
+                    # Download using downloader logic
                     temp_path = download_song(query)
                     
                     if temp_path and os.path.exists(temp_path):
-                        # --- THE SYNC STEP: RENAME TO MATCH EXPORTIFY EXACTLY ---
-                        final_filename = f"{query}.mp3"
+                        # --- LIGHTWEIGHT RENAME ---
+                        # Append [hash] to whatever the downloader saved
+                        time.sleep(0.3) # Give OS a moment to release handle
+                        base, ext = os.path.splitext(temp_path)
+                        final_path = f"{base} [{q_hash}]{ext}"
                         
-                        # Handle potential character conflicts and move to final name
-                        os.rename(temp_path, final_filename)
+                        os.rename(temp_path, final_path)
                         
-                        if data: 
-                            apply_metadata(final_filename, data)
+                        if data:
+                            apply_metadata(final_path, data)
                         
-                        # --- THE REGISTRATION STEP ---
+                        # --- REGISTER ---
                         with open(history_file, "a", encoding="utf-8") as h:
-                            h.write(f"{query}\n")
-                            
+                            h.write(f"{q_hash}\n")
+                        
                         success = True
                         break 
                 except Exception:
-                    # CLEANUP: If rename or download failed, delete the partial/temp file
                     if temp_path and os.path.exists(temp_path):
-                        os.remove(temp_path)
+                        try: os.remove(temp_path)
+                        except: pass
                     continue 
             
             if not success:
-                failed_songs.append(query)
-                with open(failed_file, "a", encoding="utf-8") as f:
-                    f.write(f"{query}\n")
+                failed_set.add(query)
 
     except KeyboardInterrupt:
-        print("\n\n🛑 Stop detected! Cleaning up active downloads...")
-        # Note: 'temp_path' inside the loop handles the actual file deletion
-        return
+        print("\n\n🛑 Interrupted. Cleaning up current session...")
+    finally:
+        # Overwrite failed file with the cleaned/updated set
+        with open(failed_file, "w", encoding="utf-8") as f:
+            for item in sorted(failed_set):
+                f.write(f"{item}\n")
 
     print("\n✨ Process Complete!")
-    if failed_songs:
-        print(f"\n❌ {len(failed_songs)} failures. Check backup/failed_songs.txt")
-    else:
-        print("✅ All songs are synced and mirrored!")
 
 def main():
     parser = argparse.ArgumentParser(prog="music")
@@ -123,20 +155,21 @@ def main():
     args = parser.parse_args()
 
     if args.open:
-        path = os.path.abspath("downloads") if os.path.exists("downloads") else os.getcwd()
+        path = os.getcwd()
         os.startfile(path) if os.name == 'nt' else subprocess.run(['open', path])
         return
 
     if args.search:
-        # Single search also follows the rename logic
+        h = get_query_hash(args.search)
         path = download_song(args.search)
         if path and os.path.exists(path):
-            final_name = f"{args.search}.mp3"
-            os.rename(path, final_name)
+            base, ext = os.path.splitext(path)
+            final = f"{base} [{h}]{ext}"
+            os.rename(path, final)
             if " - " in args.search:
                 s, a = args.search.split(" - ", 1)
                 data = get_clean_metadata(s, a)
-                if data: apply_metadata(final_name, data)
+                if data: apply_metadata(final, data)
         return
 
     run_from_csv(args.input)
