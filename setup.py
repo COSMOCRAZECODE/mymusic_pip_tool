@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="mymusic-dl-Rajthespaceman", 
-    version="1.6.2",  # Updated to the direct-folder version
+    version="1.6.3",  # Updated to the direct-folder version
     author="Raj Gohel",
     author_email="rajgohel202004@gmail.com",
     description="A silent, direct-to-folder tool to download Spotify playlists using Exportify CSVs.",
