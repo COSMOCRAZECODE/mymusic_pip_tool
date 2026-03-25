@@ -1,4 +1,4 @@
-# 🎵 MyMusic Downloader (v1.5.1)
+# 🎵 MyMusic Downloader (v1.6.0)
 
 A high-performance, silent CLI tool designed to download Spotify playlists directly into your local folder as high-quality MP3s with 100% accurate metadata. No extra folders, no hidden history files—just your music, exactly where you run the command.
 
